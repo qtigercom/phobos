@@ -2166,7 +2166,6 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
         }
         else
         {
-            enforce(_data);
             immutable offset = r._a;
             enforce(offset <= length);
             auto result = insertBack(stuff);
@@ -2180,8 +2179,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     size_t insertAfter(Stuff)(Range r, Stuff stuff)
     {
         // TODO: optimize
-        enforce(_data);
-        immutable offset = r.ptr + r.length - _data._payload.ptr;
+        immutable offset = r._b;
         enforce(offset <= length);
         auto result = insertBack(stuff);
         bringToFront(this[offset .. length - result],
@@ -2193,8 +2191,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     size_t replace(Stuff)(Range r, Stuff stuff)
     if (isInputRange!Stuff && isImplicitlyConvertible!(ElementType!Stuff, T))
     {
-        enforce(_data);
-        immutable offset = r.ptr - _data._payload.ptr;
+        immutable offset = r._a; 
         enforce(offset <= length);
         size_t result;
         for (; !stuff.empty; stuff.popFront())
@@ -2202,14 +2199,14 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
             if (r.empty)
             {
                 // append the rest
-                return result + insertBack(stuff);
+                return result + insertAfter(r, stuff);
             }
             r.front = stuff.front;
             r.popFront();
             ++result;
         }
         // Remove remaining stuff in r
-        remove(r);
+        linearRemove(r);
         return result;
     }
 
@@ -2225,7 +2222,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
         {
             r.front = stuff;
             r.popFront();
-            remove(r);
+            linearRemove(r);
         }
         return 1;
     }
@@ -2330,6 +2327,14 @@ unittest
     assert(a == Array!int(1, 2, 3));
 }
 
+// unittest
+// {
+//     auto a = Array!int(1, 2, 3, 4);
+//     //assert(a.remove(a[1 .. 3]);
+//     a.remove(a[1 .. 3]);
+//     assert(a == Array!int(3, 4));
+// }
+
 unittest
 {
     auto a = Array!int(1, 2, 3, 4, 5);
@@ -2339,6 +2344,45 @@ unittest
     r = a[2 .. 2];
     assert(a.insertBefore(r, [8, 9]) == 2);
     assert(a == Array!int(1, 2, 8, 9, 42, 3, 4, 5));
+}
+
+unittest
+{
+    auto a = Array!int(1, 2, 3);
+    auto b = Array!int(1, 2, 3);
+    assert(a.insertAfter(a[], b[]) == 3);
+}
+
+unittest
+{
+    auto a = Array!int(1, 2, 3, 4);
+    auto r = take(a[], 2);
+    assert(a.insertAfter(r, 5) == 1);
+    assert(a == Array!int(1, 2, 5, 3, 4));
+}
+
+unittest
+{
+    auto a = Array!string(["a", "b", "d"]);
+    a.insertAfter(a[], "e"); // insert at the end (slowest)
+    assert(std.algorithm.equal(a[], ["a", "b", "d", "e"]));
+    a.insertAfter(std.range.take(a[], 2), "c"); // insert after "b"
+    assert(std.algorithm.equal(a[], ["a", "b", "c", "d", "e"]));
+}
+
+unittest
+{
+    auto a = Array!int(0, 1, 2, 3);
+    assert(1 == a.replace(a[1 .. 2], 4));
+    assert(a == Array!int(0, 4, 2, 3));
+}
+
+unittest
+{
+    auto a = Array!int(0, 1, 2, 3);
+    auto b = Array!int(4, 5, 6);
+    assert(3 == a.replace(a[0 .. 2], b[]));
+    assert(a == Array!int(4, 5, 6, 2, 3));
 }
 
 unittest
