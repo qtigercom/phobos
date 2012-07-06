@@ -2126,7 +2126,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     size_t insertBefore(Stuff)(Range r, Stuff stuff)
     if (isImplicitlyConvertible!(Stuff, T))
     {
-        enforce(r._outer._data == _data && r._a < length);
+        enforce(r._outer._data is _data && r._a <= length);
         reserve(length + 1);
         assert(_data.RefCounted.isInitialized);
         // Move elements over by one slot
@@ -2142,7 +2142,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     size_t insertBefore(Stuff)(Range r, Stuff stuff)
     if (isInputRange!Stuff && isImplicitlyConvertible!(ElementType!Stuff, T))
     {
-        enforce(r._outer._data == _data && r._a <= length);
+        enforce(r._outer._data is _data && r._a <= length);
         static if (isForwardRange!Stuff)
         {
             // Can find the length in advance
@@ -2166,6 +2166,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
         }
         else
         {
+            enforce(_data);
             immutable offset = r._a;
             enforce(offset <= length);
             auto result = insertBack(stuff);
@@ -2178,6 +2179,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     /// ditto
     size_t insertAfter(Stuff)(Range r, Stuff stuff)
     {
+        enforce(r._outer._data is _data);
         // TODO: optimize
         immutable offset = r._b;
         enforce(offset <= length);
@@ -2191,15 +2193,14 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     size_t replace(Stuff)(Range r, Stuff stuff)
     if (isInputRange!Stuff && isImplicitlyConvertible!(ElementType!Stuff, T))
     {
-        immutable offset = r._a; 
-        enforce(offset <= length);
+        enforce(r._outer._data is _data);
         size_t result;
         for (; !stuff.empty; stuff.popFront())
         {
             if (r.empty)
             {
-                // append the rest
-                return result + insertAfter(r, stuff);
+                // insert the rest
+                return result + insertBefore(r, stuff);
             }
             r.front = stuff.front;
             r.popFront();
@@ -2214,6 +2215,7 @@ Complexity: $(BIGOH n + m), where $(D m) is the length of $(D stuff)
     size_t replace(Stuff)(Range r, Stuff stuff)
     if (isImplicitlyConvertible!(Stuff, T))
     {
+        enforce(r._outer._data is _data);
         if (r.empty)
         {
             insertBefore(r, stuff);
@@ -2241,6 +2243,7 @@ $(D r)
      */
     Range linearRemove(Range r)
     {
+        enforce(r._outer._data is _data);
         enforce(_data.RefCounted.isInitialized);
         enforce(r._a <= r._b && r._b <= length);
         immutable offset1 = r._a;
@@ -2467,6 +2470,53 @@ unittest
     assert(a.length == 2);
     assert(a[0] == [1,2]);
     assert(a[1] == [3,4]);
+}
+
+// test replace!Stuff with range Stuff
+unittest
+{
+    auto a = Array!int([1, 42, 5]);
+    a.replace(a[1 .. 2], [2, 3, 4]);
+    assert(equal(a[], [1, 2, 3, 4, 5]));
+}
+
+// test insertBefore and replace with empty Arrays
+unittest
+{
+    auto a = Array!int();
+    a.insertBefore(a[], 1);
+    assert(equal(a[], [1]));
+}
+unittest
+{
+    auto a = Array!int();
+    a.insertBefore(a[], [1, 2]);
+    assert(equal(a[], [1, 2]));
+}
+unittest
+{
+    auto a = Array!int();
+    a.replace(a[], [1, 2]);
+    assert(equal(a[], [1, 2]));
+}
+unittest
+{
+    auto a = Array!int();
+    a.replace(a[], 1);
+    assert(equal(a[], [1]));
+}
+
+// make sure that Array instances refuse ranges that don't belong to them
+unittest
+{
+	Array!int a = [1, 2, 3];
+	auto r = a.dup[];
+	assertThrown(a.insertBefore(r, 42));
+	assertThrown(a.insertBefore(r, [42]));
+	assertThrown(a.insertAfter(r, 42));
+	assertThrown(a.replace(r, 42));
+	assertThrown(a.replace(r, [42]));
+	assertThrown(a.linearRemove(r));
 }
 
 // BinaryHeap
