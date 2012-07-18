@@ -40,8 +40,6 @@ class ConvException : Exception
     }
 }
 
-deprecated alias ConvException ConvError;   /// ditto
-
 private string convError_unexpected(S)(S source) {
     return source.empty ? "end of input" : text("'", source.front, "'");
 }
@@ -97,7 +95,7 @@ private
         if (isSomeString!T)
     {
         auto w = appender!T();
-        FormatSpec!(typeof(T.init[0])) f;
+        FormatSpec!(ElementEncodingType!T) f;
         formatValue(w, src, f);
         return w.data;
     }
@@ -135,8 +133,6 @@ class ConvOverflowException : ConvException
         super(s, fn, ln);
     }
 }
-
-deprecated alias ConvOverflowException ConvOverflowError;   /// ditto
 
 /* **************************************************************
 
@@ -786,10 +782,10 @@ T toImpl(T, S)(S value)
           !isEnumStrToStr!(S, T) && !isNullToStr!(S, T)) &&
         isSomeString!T && !isAggregateType!T)
 {
-    static if (isSomeString!S && value[0].sizeof == T.init[0].sizeof)
+    static if (isSomeString!S && value[0].sizeof == ElementEncodingType!T.sizeof)
     {
         // string-to-string with incompatible qualifier conversion
-        static if (is(typeof(T.init[0]) == immutable))
+        static if (is(ElementEncodingType!T == immutable))
         {
             // conversion (mutable|const) -> immutable
             return value.idup;
@@ -808,7 +804,7 @@ T toImpl(T, S)(S value)
     else static if (is(S == void[]) || is(S == const(void)[]) || is(S == immutable(void)[]))
     {
         // Converting void array to string
-        alias Unqual!(typeof(T.init[0])) Char;
+        alias Unqual!(ElementEncodingType!T) Char;
         auto raw = cast(const(ubyte)[]) value;
         enforce(raw.length % Char.sizeof == 0,
                 new ConvException("Alignment mismatch in converting a "
@@ -995,7 +991,7 @@ unittest
 
     class A
     {
-        override string toString() { return "an A"; }
+        override string toString() const { return "an A"; }
     }
     A a;
     assert(to!string(a) == "null");
@@ -1003,7 +999,7 @@ unittest
     assert(to!string(a) == "an A");
 
     // Bug 7660
-    class C { override string toString() { return "C"; } }
+    class C { override string toString() const { return "C"; } }
     struct S { C c; alias c this; }
     S s; s.c = new C();
     assert(to!string(s) == "C");
@@ -1144,7 +1140,7 @@ deprecated T toImpl(T, S)(S s, in T leftBracket, in T separator = ", ", in T rig
     }
     else
     {
-        alias Unqual!(typeof(T.init[0])) Char;
+        alias Unqual!(ElementEncodingType!T) Char;
         // array-to-string conversion
         auto result = appender!(Char[])();
         result.put(leftBracket);
@@ -1185,7 +1181,7 @@ deprecated T toImpl(T, S)(S s, in T leftBracket, in T keyval = ":", in T separat
     pragma(msg, hardDeprec!("2.060", "January 2013", "std.conv.toImpl with extra parameters",
                                                  "std.format.formattedWrite"));
 
-    alias Unqual!(typeof(T.init[0])) Char;
+    alias Unqual!(ElementEncodingType!T) Char;
     auto result = appender!(Char[])();
 // hash-to-string conversion
     result.put(leftBracket);
@@ -1229,7 +1225,7 @@ deprecated T toImpl(T, S)(S s, in T left, in T separator = ", ", in T right = ")
     {
         // ok, attempt to forge the tuple
         t = cast(typeof(t)) &s;
-        alias Unqual!(typeof(T.init[0])) Char;
+        alias Unqual!(ElementEncodingType!T) Char;
         auto app = appender!(Char[])();
         app.put(left);
         foreach (i, e; t.field)
@@ -2597,7 +2593,7 @@ string up one position.
  */
 Target parse(Target, Source)(ref Source s)
     if (isSomeString!Source &&
-        staticIndexOf!(Unqual!Target, dchar, Unqual!(typeof(Source.init[0]))) >= 0)
+        staticIndexOf!(Unqual!Target, dchar, Unqual!(ElementEncodingType!Source)) >= 0)
 {
     static if (is(Unqual!Target == dchar))
     {
@@ -2621,7 +2617,7 @@ unittest
         foreach (Char; TypeTuple!(char, wchar, dchar))
         {
             static if (is(Unqual!Char == dchar) ||
-                       Char.sizeof == Str.init[0].sizeof)
+                       Char.sizeof == ElementEncodingType!Str.sizeof)
             {
                 Str s = "aaa";
                 assert(parse!Char(s) == 'a');
@@ -2719,17 +2715,6 @@ unittest
 
     auto s = "NULL";
     assert(parse!(const(NullType))(s) is null);
-}
-
-// Parsing typedefs forwards to their host types
-deprecated Target parse(Target, Source)(ref Source s)
-    if (isSomeString!Source &&
-        is(Target == typedef))
-{
-    static if (is(Target T == typedef))
-        return cast(Target) parse!T(s);
-    else
-        static assert(0);
 }
 
 private void skipWS(R)(ref R r)

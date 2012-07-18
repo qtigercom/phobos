@@ -11,7 +11,8 @@ WIKI=Phobos/StdStdio
 Copyright: Copyright Digital Mars 2007-.
 License:   $(WEB boost.org/LICENSE_1_0.txt, Boost License 1.0).
 Authors:   $(WEB digitalmars.com, Walter Bright),
-           $(WEB erdani.org, Andrei Alexandrescu)
+           $(WEB erdani.org, Andrei Alexandrescu),
+           Alex Rønne Petersen
  */
 module std.stdio;
 
@@ -786,7 +787,7 @@ by $(D buf), whereas $(D buf = stdin.readln()) makes a new memory allocation
 with every line.  */
     S readln(S = string)(dchar terminator = '\n')
     {
-        Unqual!(typeof(S.init[0]))[] buf;
+        Unqual!(ElementEncodingType!S)[] buf;
         readln(buf, terminator);
         return assumeUnique(buf);
     }
@@ -1527,7 +1528,8 @@ unittest
 }
 
 /**
- * $(RED Scheduled for deprecation. Please use $(D isFileHandle) instead.)
+ * $(RED Scheduled for deprecation in January 2013.
+ *       Please use $(D isFileHandle) instead.)
  */
 alias isFileHandle isStreamingDevice;
 
@@ -1580,7 +1582,7 @@ void writeln(T...)(T args)
         enforce(fputc('\n', .stdout.p.handle) == '\n');
     }
     else static if (T.length == 1 &&
-                    isSomeString!(typeof(args[0])) &&
+                    isSomeString!(typeof(args[0])) && is(typeof(args[0]) : const(char)[]) &&
                     !isAggregateType!(typeof(args[0])))
     {
         // Specialization for strings - a very frequent case
@@ -1608,8 +1610,9 @@ unittest
 
 unittest
 {
-        //printf("Entering test at line %d\n", __LINE__);
+    //printf("Entering test at line %d\n", __LINE__);
     scope(failure) printf("Failed test at line %d\n", __LINE__);
+
     // test writeln
     auto deleteme = testFilename();
     auto f = File(deleteme, "w");
@@ -1622,6 +1625,7 @@ unittest
     else
         assert(cast(char[]) std.file.read(deleteme) ==
                 "Hello, world number 42!\n");
+
     // test writeln on stdout
     auto saveStdout = stdout;
     scope(exit) stdout = saveStdout;
@@ -1634,6 +1638,18 @@ unittest
     else
         assert(cast(char[]) std.file.read(deleteme) ==
                 "Hello, world number 42!\n");
+
+    stdout.open(deleteme, "w");
+    writeln("Hello!"c);
+    writeln("Hello!"w);    // bug 8386
+    writeln("Hello!"d);    // bug 8386
+    stdout.close();
+    version (Windows)
+        assert(cast(char[]) std.file.read(deleteme) ==
+            "Hello!\r\nHello!\r\nHello!\r\n");
+    else
+        assert(cast(char[]) std.file.read(deleteme) ==
+            "Hello!\nHello!\nHello!\n");
 }
 
 unittest
@@ -2261,7 +2277,7 @@ class StdioException : Exception
 
 /**
 Initialize with a message and an error code. */
-    this(string message, uint e = .getErrno())
+    this(string message, uint e = .errno)
     {
         errno = e;
         version (Posix)
@@ -2294,7 +2310,7 @@ Initialize with a message and an error code. */
 /// ditto
     static void opCall()
     {
-        throw new StdioException(null, .getErrno());
+        throw new StdioException(null, .errno);
     }
 }
 
