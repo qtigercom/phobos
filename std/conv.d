@@ -416,7 +416,7 @@ unittest
 }
 
 /**
-$(RED Deprecated. It will be removed in August 2012. Please define $(D opCast)
+$(RED Deprecated. It will be removed in September 2012. Please define $(D opCast)
       for user-defined types instead of a $(D to) function.
       $(LREF to) will now use $(D opCast).)
 
@@ -2467,7 +2467,7 @@ unittest
         assert(to!Float("123e2") == Literal!Float(123e2));
         assert(to!Float("123e+2") == Literal!Float(123e+2));
         assert(to!Float("123e-2") == Literal!Float(123e-2));
-        assert(to!Float("123.") == Literal!Float(123.));
+        assert(to!Float("123.") == Literal!Float(123.0));
         assert(to!Float(".456") == Literal!Float(.456));
 
         assert(to!Float("1.23456E+2") == Literal!Float(1.23456E+2));
